@@ -68,19 +68,6 @@ alter table public.leads  enable row level security;
 alter table public.events enable row level security;
 
 -- ---------------------------------------------------------------------------
--- Storage bucket for the card photos
---
--- Public, so the photo links in the exported spreadsheet open for anyone you
--- send the file to. Each path contains a random UUID, so the links cannot be
--- guessed, but treat them as "anyone with the link can view" — see the note in
--- README.md if you would rather they expire.
--- ---------------------------------------------------------------------------
-
-insert into storage.buckets (id, name, public)
-values ('cards', 'cards', true)
-on conflict (id) do update set public = true;
-
--- ---------------------------------------------------------------------------
 -- Conditional upsert
 --
 -- Two phones can edit the same lead while both are offline. Whichever edit was
@@ -147,4 +134,30 @@ begin
   get diagnostics affected = row_count;
   return affected;
 end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Storage bucket for the card photos
+--
+-- Public, so the photo links in the exported spreadsheet open for anyone you
+-- send the file to. Each path contains a random UUID, so the links cannot be
+-- guessed, but treat them as "anyone with the link can view" — see the note in
+-- README.md if you would rather they expire.
+--
+-- Deliberately last, and guarded. On some projects the SQL editor's role
+-- cannot write to storage.buckets, and an error here would abort the whole
+-- script — leaving the tables in place but no upsert_leads function, which
+-- fails later in a way that is hard to connect back to this line. A refusal
+-- now just prints a notice telling you to make the bucket by hand.
+-- ---------------------------------------------------------------------------
+
+do $$
+begin
+  insert into storage.buckets (id, name, public)
+  values ('cards', 'cards', true)
+  on conflict (id) do update set public = true;
+exception
+  when insufficient_privilege or undefined_table then
+    raise notice 'Could not create the "cards" bucket from SQL. Make it by hand: Supabase -> Storage -> New bucket -> name it exactly "cards" and tick Public.';
+end
 $$;
