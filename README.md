@@ -24,6 +24,7 @@ back. Nothing is lost mid-conversation.
 | **Never loses a half-typed lead** | The capture form saves itself to the phone as you type. Switch tabs, take a call, let the browser discard the page — it comes back exactly as you left it. |
 | **Works offline** | Leads save instantly on the phone. A badge at the top always tells you whether your work has reached the server. |
 | **Installs like an app** | "Add to Home Screen" gives it an icon and a full screen, no browser bar. |
+| **Handles several shows** | Every lead carries the exhibition it came from. The Leads list shows it on each card and gains a filter once you have more than one, and the export breaks the totals down by show. |
 | **Exports to Excel** | One `.xlsx` with every lead, colour-coded by rating, clickable email and photo links, plus a summary tab counting leads per person. |
 
 ---
@@ -220,6 +221,11 @@ CRM, and keep in mind whatever data rules apply to you.
 
 **Editing a lead** — tap it on the **Leads** tab. Every field can be changed
 afterwards, including which exhibition it belongs to.
+
+**Running more than one show** — nothing to set up. Each lead is labelled with
+its exhibition in the Leads list, a filter appears there once a second show has
+leads, and the export's Summary tab gains a per-exhibition breakdown. Export one
+show at a time from the Export tab, or take the lot in a single file.
 
 **Badge QR codes are usually useless.** Most organisers encode only an opaque
 registration number, with the name and company kept in their own database and

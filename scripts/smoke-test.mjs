@@ -130,6 +130,23 @@ async function main() {
     step("Lead survived a reload", "still listed after restarting the app");
     await page.screenshot(join(SHOTS, "4-leads.png"));
 
+    // Every lead must say which show it came from, so an overview spanning
+    // several exhibitions is readable without opening anything.
+    const labelled = await page.evaluate(`
+      [...document.querySelectorAll('main li')].map((item) => {
+        const name = item.querySelector('.truncate')?.textContent ?? '?';
+        const tag = [...item.querySelectorAll('span')]
+          .map((s) => s.textContent.trim())
+          .find((t) => t === 'No exhibition' || /20\\d\\d/.test(t));
+        return { name, tag: tag ?? null };
+      })`);
+    const unlabelled = labelled.filter((row) => !row.tag);
+    if (labelled.length === 0) throw new Error("No lead cards rendered");
+    if (unlabelled.length > 0) {
+      throw new Error(`Leads with no exhibition label: ${JSON.stringify(unlabelled)}`);
+    }
+    step("Every lead shows its exhibition", `${labelled.length} card(s) labelled`);
+
     const queued = await page.evaluate(
       `${bodyIncludes("Waiting to sync")} || ${bodyIncludes("Offline")}`,
     );

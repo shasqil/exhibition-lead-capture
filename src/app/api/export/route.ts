@@ -228,4 +228,26 @@ function buildSummarySheet(workbook: ExcelJS.Workbook, leads: Lead[]) {
   const totalRow = sheet.addRow(["All leads", ...totals, leads.length]);
   totalRow.font = { bold: true };
   totalRow.border = { top: { style: "thin" } };
+
+  // Only worth the rows when the file actually spans more than one show —
+  // exporting a single exhibition would just repeat the totals above.
+  const byShow = new Map<string, Record<Rating, number>>();
+  for (const lead of leads) {
+    const show = lead.event_name?.trim() || "No exhibition";
+    const tally = byShow.get(show) ?? blank();
+    tally[lead.rating] += 1;
+    byShow.set(show, tally);
+  }
+  if (byShow.size > 1) {
+    sheet.addRow([]);
+    const heading = sheet.addRow(["By exhibition", ...RATINGS.map(() => ""), ""]);
+    heading.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    heading.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+
+    for (const show of [...byShow.keys()].sort((a, b) => a.localeCompare(b))) {
+      const tally = byShow.get(show)!;
+      const counts = RATINGS.map((rating) => tally[rating]);
+      sheet.addRow([show, ...counts, counts.reduce((sum, n) => sum + n, 0)]);
+    }
+  }
 }
