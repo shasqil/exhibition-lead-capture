@@ -1,26 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Banner, Button, Card, Field, SectionTitle, Select, Spinner } from "./ui";
-import { getCachedEvents, setCachedEvents } from "@/lib/local-db";
 import { syncNow } from "@/lib/sync";
+import type { EventsState } from "@/hooks/use-events";
 import type { ExhibitionEvent, LocalLead } from "@/lib/types";
 
 export function ExportPanel({
   event,
   setEvent,
+  events,
+  createEvent,
   leads,
   pending,
   online,
 }: {
   event: ExhibitionEvent | null;
   setEvent: (event: ExhibitionEvent | null) => void;
+  events: ExhibitionEvent[];
+  createEvent: EventsState["create"];
   leads: LocalLead[];
   pending: number;
   online: boolean;
 }) {
-  const [events, setEvents] = useState<ExhibitionEvent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newLocation, setNewLocation] = useState("");
@@ -28,58 +30,18 @@ export function ExportPanel({
   const [downloading, setDownloading] = useState(false);
   const [includeNonLeads, setIncludeNonLeads] = useState(false);
 
-  const load = useCallback(async () => {
-    // Show whatever was cached first so the tab is usable with no signal.
-    const cached = await getCachedEvents();
-    if (cached) setEvents(cached);
-    setLoading(false);
-
-    if (!navigator.onLine) return;
-    try {
-      const response = await fetch("/api/events");
-      if (!response.ok) return;
-      const { events: fresh } = (await response.json()) as { events: ExhibitionEvent[] };
-      setEvents(fresh);
-      await setCachedEvents(fresh);
-    } catch {
-      // Cached list stands.
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function createEvent() {
-    const name = newName.trim();
-    if (!name) return;
+  async function addEvent() {
     setCreating(true);
     setError(null);
-    try {
-      const response = await fetch("/api/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, location: newLocation.trim() }),
-      });
-      const body = (await response.json().catch(() => ({}))) as {
-        event?: ExhibitionEvent;
-        error?: string;
-      };
-      if (!response.ok || !body.event) {
-        setError(body.error ?? "Could not create the exhibition.");
-        return;
-      }
-      const next = [body.event, ...events];
-      setEvents(next);
-      await setCachedEvents(next);
-      setEvent(body.event);
+    const result = await createEvent({ name: newName, location: newLocation });
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setEvent(result.event);
       setNewName("");
       setNewLocation("");
-    } catch {
-      setError("You need a connection to create an exhibition.");
-    } finally {
-      setCreating(false);
     }
+    setCreating(false);
   }
 
   async function download() {
@@ -129,30 +91,29 @@ export function ExportPanel({
       ) : null}
 
       <Card>
-        <SectionTitle>Current exhibition</SectionTitle>
-        {loading ? (
-          <Spinner />
-        ) : (
-          <div className="space-y-3">
-            <Select
-              label="New leads will be tagged with"
-              value={event?.id ?? ""}
-              onChange={(id) => setEvent(events.find((candidate) => candidate.id === id) ?? null)}
-            >
-              <option value="">— none —</option>
-              {events.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name}
-                  {candidate.location ? ` · ${candidate.location}` : ""}
-                </option>
-              ))}
-            </Select>
-            <p className="text-sm text-slate-500">
-              {forEvent.length} lead{forEvent.length === 1 ? "" : "s"} on this device
-              {event ? ` for ${event.name}` : ""}.
-            </p>
-          </div>
-        )}
+        <SectionTitle>Exhibition to export</SectionTitle>
+        <div className="space-y-3">
+          <Select
+            label="Which show"
+            value={event?.id ?? ""}
+            onChange={(id) => setEvent(events.find((candidate) => candidate.id === id) ?? null)}
+          >
+            <option value="">— none —</option>
+            {events.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+                {candidate.location ? ` · ${candidate.location}` : ""}
+              </option>
+            ))}
+          </Select>
+          <p className="text-sm text-slate-500">
+            {forEvent.length} lead{forEvent.length === 1 ? "" : "s"} on this device
+            {event ? ` for ${event.name}` : ""}.
+          </p>
+          <p className="text-xs text-slate-400">
+            New leads are tagged on the Capture screen, not here.
+          </p>
+        </div>
       </Card>
 
       <Card>
@@ -173,7 +134,7 @@ export function ExportPanel({
           />
           <Button
             variant="secondary"
-            onClick={() => void createEvent()}
+            onClick={() => void addEvent()}
             disabled={!newName.trim() || creating || !online}
             full
           >

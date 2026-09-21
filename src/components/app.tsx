@@ -8,6 +8,7 @@ import { LeadsList } from "./leads-list";
 import { SyncBadge } from "./sync-badge";
 import { Banner } from "./ui";
 import { useActiveEvent, useLeads, useSyncStatus } from "@/hooks/use-leads";
+import { useEvents } from "@/hooks/use-events";
 import { clearLocalData } from "@/lib/local-db";
 import { startSync, syncNow } from "@/lib/sync";
 import type { LocalLead } from "@/lib/types";
@@ -31,6 +32,7 @@ export function App({ member, products }: { member: string; products: string[] }
   const { leads, loading } = useLeads();
   const status = useSyncStatus();
   const { event, setEvent } = useActiveEvent();
+  const { events, create: createEvent } = useEvents();
 
   useEffect(() => {
     startSync();
@@ -124,6 +126,9 @@ export function App({ member, products }: { member: string; products: string[] }
               member={member}
               event={event}
               products={products}
+              events={events}
+              onChangeActiveEvent={setEvent}
+              onAddEvent={() => setTab("export")}
               existing={editing}
               onDone={finishEditing}
               onCancel={() => setEditing(null)}
@@ -135,6 +140,9 @@ export function App({ member, products }: { member: string; products: string[] }
             member={member}
             event={event}
             products={products}
+            events={events}
+            onChangeActiveEvent={setEvent}
+            onAddEvent={() => setTab("export")}
             onDone={(message) => {
               setToast(message);
               setFormKey((value) => value + 1);
@@ -146,6 +154,8 @@ export function App({ member, products }: { member: string; products: string[] }
           <ExportPanel
             event={event}
             setEvent={setEvent}
+            events={events}
+            createEvent={createEvent}
             leads={leads}
             pending={status.pending}
             online={status.online}

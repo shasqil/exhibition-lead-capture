@@ -17,6 +17,7 @@ back. Nothing is lost mid-conversation.
 | | |
 |---|---|
 | **Scan a card** | Photograph the front and back. Claude reads the name, company, title, email, phone, website and address. Handles two-sided and non-English cards. |
+| **Or scan a badge** | No business card? Photograph their exhibition badge instead. It reads the printed name and company, and knows to ignore the show's own name, the "VISITOR" band and the registration number. |
 | **Or type it in** | Every field is editable. The scan only fills in blanks — it never overwrites something you typed. |
 | **Rate the lead** | Four big buttons: Hot, Warm, Cold, Not a lead. |
 | **Record the conversation** | A free-text box for what you actually talked about, the products that came up as tap-to-tick chips, and a follow-up action. |
@@ -139,18 +140,25 @@ They stay signed in for 30 days.
 
 ### Step 5 — Before the show
 
-Open the **Export** tab and create the exhibition (e.g. `OTC Asia 2026`). Every
-lead captured after that is tagged with it, so you can export one show at a
-time. Each person does this once on their own phone.
+Create the exhibition once, on the **Export** tab (e.g. `OTC Asia 2026`).
+
+Then on the **Capture** screen, each person picks it from the box at the top,
+once, on their own phone. Every lead they capture after that is tagged with it
+until they change it — so you can export one show at a time. A saved lead can
+be re-tagged later by opening it from the **Leads** tab.
 
 ---
 
 ## Using it at the booth
 
-1. Tap **Capture**.
+1. Tap **Capture**. Check the exhibition at the top is the right one — you set
+   this once and it sticks.
 2. Tap **Front**, photograph the card. The details fill in after a second or
    two, highlighted in green so you can check them.
 3. Tap **Back** if the card has a second side worth reading.
+
+   **No business card?** Photograph their badge in the same slot. It reads the
+   printed name and company. Badges rarely show an email, so ask for that.
 4. Tap **Hot**, **Warm**, **Cold** or **Not a lead**.
 5. Type what you talked about while it's fresh, and tick any products that
    came up.
@@ -206,6 +214,15 @@ handed you a card. Delete the rows in Supabase once you've moved them into your
 CRM, and keep in mind whatever data rules apply to you.
 
 **Deleting a lead** removes it for everyone, not just on your phone.
+
+**Editing a lead** — tap it on the **Leads** tab. Every field can be changed
+afterwards, including which exhibition it belongs to.
+
+**Badge QR codes are usually useless.** Most organisers encode only an opaque
+registration number, with the name and company kept in their own database and
+sold as a lead-retrieval service. Photographing the badge's printed text is the
+way round it. If a show's QR turns out to hold a vCard, that is worth adding —
+decode one and check before assuming.
 
 **Keys go in Vercel and nowhere else.** Not in a chat, a doc, a screenshot, a
 support ticket or a commit. Nobody — no colleague, no support agent, no AI

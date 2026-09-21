@@ -233,6 +233,21 @@ async function main() {
     if (saveVisible.covered) throw new Error("Save lead button is covered by something else");
     step("Save button is reachable", "nothing painted on top of it");
 
+    /* --- The exhibition is chosen where the lead is captured --------------- */
+    const picker = await page.evaluate(`
+      (() => {
+        const label = [...document.querySelectorAll('label')]
+          .find((l) => l.textContent.toLowerCase().includes('capturing for'));
+        if (!label) return { found: false };
+        const select = label.querySelector('select');
+        return { found: Boolean(select), options: [...(select?.options ?? [])].map((o) => o.text) };
+      })()`);
+    if (!picker.found) throw new Error("No exhibition picker on the capture screen");
+    if (!picker.options?.some((text) => text.includes("Add an exhibition"))) {
+      throw new Error(`Picker cannot reach event creation: ${JSON.stringify(picker.options)}`);
+    }
+    step("Exhibition is set on the capture screen", "with a route to adding one");
+
     /* --- Export tab renders ----------------------------------------------- */
     await page.evaluate(clickByText("nav button", "Export"));
     await page.waitFor(bodyIncludes("Export to Excel"), { label: "export tab" });

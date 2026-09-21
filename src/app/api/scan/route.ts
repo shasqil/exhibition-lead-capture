@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const { session, response } = await requireSession();
   if (!session) return response;
 
-  let body: { images?: unknown };
+  let body: { images?: unknown; event_name?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -46,8 +46,15 @@ export async function POST(request: Request) {
     images.push({ base64: item.base64, mediaType });
   }
 
+  // Naming the show lets the scanner rule it out as the person's employer,
+  // which is the commonest way a badge photo goes wrong.
+  const eventName =
+    typeof body.event_name === "string" && body.event_name.trim()
+      ? body.event_name.trim().slice(0, 200)
+      : undefined;
+
   try {
-    const fields = await extractCard(images);
+    const fields = await extractCard(images, { eventName });
     return NextResponse.json({ fields });
   } catch (error) {
     return errorResponse(error, "Could not read the card. Type the details in instead.");

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Banner, Button, Field, SectionTitle, Spinner, TextArea } from "./ui";
 import { CardPhotos, type CardPhoto } from "./card-photos";
 import { RatingPicker } from "./rating-picker";
+import { EventSelect } from "./event-select";
 import { ProductPicker } from "./product-picker";
 import { blobToBase64, compressImage } from "@/lib/image";
 import { clearDraft, deleteLead, draftHasContent, getDraft, saveDraft, saveLead } from "@/lib/local-db";
@@ -23,13 +24,29 @@ interface Props {
   event: ExhibitionEvent | null;
   /** The tickable product list, from the PRODUCTS environment variable. */
   products: string[];
+  /** Every exhibition this team has run, for the picker at the top. */
+  events: ExhibitionEvent[];
+  /** Changes the default show for subsequent captures. */
+  onChangeActiveEvent: (event: ExhibitionEvent | null) => void;
+  /** Sends the person to the screen where exhibitions are created. */
+  onAddEvent: () => void;
   /** Null for a new capture, otherwise the lead being edited. */
   existing?: LocalLead | null;
   onDone: (message: string) => void;
   onCancel?: () => void;
 }
 
-export function CaptureForm({ member, event, products, existing, onDone, onCancel }: Props) {
+export function CaptureForm({
+  member,
+  event,
+  products,
+  events,
+  onChangeActiveEvent,
+  onAddEvent,
+  existing,
+  onDone,
+  onCancel,
+}: Props) {
   const [lead, setLead] = useState<Lead>(
     () =>
       existing ??
@@ -148,7 +165,7 @@ export function CaptureForm({ member, event, products, existing, onDone, onCance
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: payload }),
+        body: JSON.stringify({ images: payload, event_name: leadRef.current.event_name }),
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string };
@@ -211,10 +228,11 @@ export function CaptureForm({ member, event, products, existing, onDone, onCance
       const record: LocalLead = {
         ...lead,
         captured_by: member,
-        // Re-stamp the event on every save so a lead started before the event
-        // was chosen still lands under the right show.
-        event_id: lead.event_id ?? event?.id ?? null,
-        event_name: lead.event_name ?? event?.name ?? null,
+        // The picker above is the only thing that sets this now, so whatever
+        // it holds is deliberate — including "none". Falling back to the
+        // active event here would silently undo clearing it.
+        event_id: lead.event_id,
+        event_name: lead.event_name,
         card_front_url: front.url ?? null,
         card_back_url: back.url ?? null,
         sync_state: "pending",
@@ -257,12 +275,23 @@ export function CaptureForm({ member, event, products, existing, onDone, onCance
         </Banner>
       ) : null}
 
-      {event ? null : (
-        <Banner tone="info">
-          No exhibition selected. Pick one on the <strong>Export</strong> tab so your leads are
-          grouped properly.
-        </Banner>
-      )}
+      <EventSelect
+        events={events}
+        value={lead.event_id}
+        scope={existing ? "existing" : "new"}
+        onAddNew={existing ? undefined : onAddEvent}
+        onChange={(picked) => {
+          setLead((current) => ({
+            ...current,
+            event_id: picked?.id ?? null,
+            event_name: picked?.name ?? null,
+          }));
+          // Setting it on a new capture also sets the default for the next
+          // one — you pick your show once at the start of the day. Editing a
+          // saved lead only ever moves that one lead.
+          if (!existing) onChangeActiveEvent(picked);
+        }}
+      />
 
       <CardPhotos
         front={front}

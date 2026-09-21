@@ -91,7 +91,7 @@ async function scanDeferred(lead: LocalLead): Promise<Partial<LocalLead>> {
   const response = await fetch("/api/scan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ images }),
+    body: JSON.stringify({ images, event_name: lead.event_name }),
   });
   if (!response.ok) throw new Error(await readError(response, "Card reading failed"));
 
