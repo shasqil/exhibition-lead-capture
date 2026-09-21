@@ -152,6 +152,61 @@ async function main() {
     );
     await page.screenshot(join(SHOTS, "5-online.png"));
 
+    /* --- Saving must leave a blank form behind ----------------------------- */
+    // The autosave once wrote the just-saved lead back as a draft while the
+    // form unmounted, so the next capture opened pre-filled with the previous
+    // person — and a scan then reported "nothing new" because every field was
+    // already taken.
+    await page.evaluate(clickByText("nav button", "Capture"));
+    await page.waitFor(bodyIncludes("How good is this lead"), { label: "capture screen" });
+
+    const afterSave = await page.evaluate(`
+      (() => {
+        const value = (label) => {
+          const node = [...document.querySelectorAll('label')]
+            .find((l) => l.textContent.trim().toLowerCase().startsWith(label));
+          return node?.querySelector('input, textarea')?.value ?? '';
+        };
+        return {
+          name: value('name'),
+          company: value('company'),
+          email: value('email'),
+          notes: value('what we talked about'),
+        };
+      })()`);
+    const carried = Object.entries(afterSave).filter(([, value]) => value !== "");
+    if (carried.length > 0) {
+      throw new Error(`Saved lead carried into the next form: ${JSON.stringify(afterSave)}`);
+    }
+    step("Form is blank after saving", "nothing carried over from the last lead");
+
+    /* --- Clear empties a form that has been typed into --------------------- */
+    await page.evaluate(fillField("Name", "Typed By Mistake"));
+    await new Promise((done) => setTimeout(done, 600));
+    // Clear asks before discarding, so auto-accept the confirm.
+    await page.evaluate(`window.confirm = () => true`);
+    if (!(await page.evaluate(clickByText("button", "Clear")))) {
+      throw new Error("No Clear button on the capture form");
+    }
+    await new Promise((done) => setTimeout(done, 600));
+    const cleared = await page.evaluate(`
+      [...document.querySelectorAll('label')]
+        .find((l) => l.textContent.trim().toLowerCase().startsWith('name'))
+        ?.querySelector('input')?.value ?? ''`);
+    if (cleared !== "") throw new Error(`Clear left "${cleared}" in the name field`);
+
+    // And it must not come back on the next visit to the form.
+    await page.evaluate(clickByText("nav button", "Leads"));
+    await new Promise((done) => setTimeout(done, 400));
+    await page.evaluate(clickByText("nav button", "Capture"));
+    await new Promise((done) => setTimeout(done, 800));
+    const stillCleared = await page.evaluate(`
+      [...document.querySelectorAll('label')]
+        .find((l) => l.textContent.trim().toLowerCase().startsWith('name'))
+        ?.querySelector('input')?.value ?? ''`);
+    if (stillCleared !== "") throw new Error(`Cleared form came back with "${stillCleared}"`);
+    step("Clear empties the form", "and it stays empty after leaving and returning");
+
     /* --- A half-typed lead survives tapping away --------------------------- */
     // The capture form is filled in mid-conversation. Leaving it, by tab or by
     // the browser discarding the page, must never cost the conversation.

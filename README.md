@@ -162,7 +162,10 @@ be re-tagged later by opening it from the **Leads** tab.
 4. Tap **Hot**, **Warm**, **Cold** or **Not a lead**.
 5. Type what you talked about while it's fresh, and tick any products that
    came up.
-6. Tap **Save lead**. The form clears, ready for the next person.
+6. Tap **Save lead**. The form empties, ready for the next person.
+
+There is also a **Clear** button beside Save, for when you start a lead and
+the conversation goes nowhere. It asks first if you have typed anything.
 
 **If you get interrupted:** just leave. The form keeps itself on the phone as
 you type, and picks up where you left off when you come back — even if the

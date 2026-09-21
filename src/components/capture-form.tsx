@@ -108,10 +108,19 @@ export function CaptureForm({
   const latest = useRef({ lead, front, back, needsScan });
   latest.current = { lead, front, back, needsScan };
 
+  /**
+   * Set once this form's contents have been dealt with — saved, or cleared on
+   * purpose. Without it the flush below runs as the form unmounts after a save
+   * and writes the lead straight back as a draft, which the next form then
+   * restores: the lead you just filed reappears on the blank form behind it.
+   */
+  const committed = useRef(false);
+
   useEffect(() => {
     if (existing || !draftReady) return;
     // Debounced so a fast typist is not writing to IndexedDB per character.
     const timer = setTimeout(() => {
+      if (committed.current) return;
       const { lead: current, front: f, back: b, needsScan: scan } = latest.current;
       void saveDraft({ lead: current, front: f.blob, back: b.blob, needs_scan: scan });
     }, 400);
@@ -130,6 +139,7 @@ export function CaptureForm({
   useEffect(() => {
     if (existing || !draftReady) return;
     return () => {
+      if (committed.current) return;
       const { lead: current, front: f, back: b, needsScan: scan } = latest.current;
       void saveDraft({ lead: current, front: f.blob, back: b.blob, needs_scan: scan });
     };
@@ -188,7 +198,20 @@ export function CaptureForm({
 
       setNeedsScan(false);
       if (touched.size === 0) {
-        setScanNote({ tone: "info", text: "Nothing new found on that photo." });
+        // "Nothing new" reads as "the photo failed", when usually the photo
+        // was fine and the form was simply already full. Say which.
+        const readAnything = CARD_FIELDS.some((field) => fields[field]);
+        setScanNote(
+          readAnything
+            ? {
+                tone: "info",
+                text: "Everything on that card is already filled in. Tap Clear if this is a new person.",
+              }
+            : {
+                tone: "error",
+                text: "Couldn't read anything from that photo. Try again in better light, or type it in.",
+              },
+        );
         return;
       }
       setLead((previous) => ({ ...previous, ...patch }));
@@ -240,13 +263,54 @@ export function CaptureForm({
         pending_back: back.blob,
         needs_scan: needsScan,
       };
+      // Before the draft is touched: from here on nothing may write this
+      // lead back as work in progress.
+      committed.current = true;
       await saveLead(record);
       if (!existing) await clearDraft();
       void syncNow();
       onDone(existing ? "Lead updated." : "Lead saved.");
+    } catch (error) {
+      // The lead is still on screen and still unsaved, so it must go back to
+      // being drafted or an interruption now would lose it.
+      committed.current = false;
+      setScanNote({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Could not save. Try again.",
+      });
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Wipes the form back to blank, keeping the show and who is capturing. */
+  function clearForm() {
+    const hasContent =
+      Boolean(front.blob || back.blob) ||
+      [
+        lead.full_name, lead.job_title, lead.company, lead.email, lead.phone,
+        lead.mobile, lead.website, lead.address, lead.country,
+        lead.products_discussed, lead.notes, lead.follow_up,
+      ].some((value) => value.trim());
+    if (hasContent && !window.confirm("Clear this form? Anything typed will be lost.")) {
+      return;
+    }
+
+    void clearDraft();
+    setLead(
+      emptyLead({
+        captured_by: member,
+        // The exhibition is the day's setting, not this lead's data.
+        event_id: lead.event_id,
+        event_name: lead.event_name,
+      }),
+    );
+    setFront({ url: null });
+    setBack({ url: null });
+    setFilled(new Set());
+    setScanNote(null);
+    setNeedsScan(false);
+    setDraftRestored(false);
   }
 
   async function remove() {
@@ -439,7 +503,11 @@ export function CaptureForm({
             <Button variant="secondary" onClick={onCancel}>
               Cancel
             </Button>
-          ) : null}
+          ) : (
+            <Button variant="secondary" onClick={clearForm} disabled={saving || scanning}>
+              Clear
+            </Button>
+          )}
           <Button onClick={() => void save()} disabled={saving || scanning} full>
             {saving ? <Spinner /> : null}
             {existing ? "Save changes" : "Save lead"}
