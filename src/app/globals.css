@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/*
+ * Deliberately light-only. This is used standing up in a brightly lit
+ * exhibition hall, often on someone else's phone, so a predictable
+ * high-contrast surface beats matching the device theme.
+ */
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Stops iOS zooming the page when a 16px input is focused. */
+  touch-action: manipulation;
+}
+
+/* Keep the sticky footer clear of the iPhone home indicator. */
+.pb-safe {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.pt-safe {
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+}
+
+/* Inputs below 16px make iOS Safari zoom on focus, which is jarring mid-scan. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
