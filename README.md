@@ -68,10 +68,11 @@ accounts: **GitHub** (you have this), **Supabase**, and **Vercel**. Plus an
    | New-style keys | **Secret key** (`sb_secret_…`) | `sb_publishable_…` |
    | Legacy keys | **`service_role`** (a long `eyJ…` string) | `anon` / `public` |
 
-   Both work. If the page offers both, take **`service_role`** — it's the
-   longest-established of the two. If **API Keys** isn't in the sidebar, look
-   under **API** or **Data API**; the page has moved around between Supabase
-   versions.
+   Both work with this app. If the page offers both, take the **Secret key**:
+   Supabase is retiring the legacy pair, and a secret key can be revoked on its
+   own, whereas killing a leaked `service_role` key means rotating your
+   project's whole JWT secret. If **API Keys** isn't in the sidebar, look under
+   **API** or **Data API**; the page has moved around between Supabase versions.
 
    > That key is a master key for your database. It goes into Vercel's
    > environment variables and nowhere else — not into a chat, a doc, or the
@@ -195,6 +196,27 @@ handed you a card. Delete the rows in Supabase once you've moved them into your
 CRM, and keep in mind whatever data rules apply to you.
 
 **Deleting a lead** removes it for everyone, not just on your phone.
+
+**Keys go in Vercel and nowhere else.** Not in a chat, a doc, a screenshot, a
+support ticket or a commit. Nobody — no colleague, no support agent, no AI
+assistant — needs to see them to help you: the app reads them from Vercel's
+environment variables at run time.
+
+### If a key leaks anyway
+
+It happens. Rotate it, don't agonise:
+
+| Key | How to rotate |
+|---|---|
+| `ANTHROPIC_API_KEY` | console.anthropic.com → API keys → delete it → **Create key**. Do this one first; it's the one attached to a card. |
+| `SUPABASE_SERVICE_ROLE_KEY`, new-style (`sb_secret_…`) | Supabase → Settings → API Keys → `⋮` next to the key → revoke → **New secret key**. |
+| `SUPABASE_SERVICE_ROLE_KEY`, legacy (`eyJ…`) | Can't be revoked on its own. Either disable legacy keys on the **Legacy anon, service_role API keys** tab, or rotate the JWT secret under **JWT Keys** — both also invalidate the `anon` key. |
+| `TEAM_PASSCODE` | Just change it in Vercel. Everyone re-enters it next time. |
+| `SESSION_SECRET` | Change it in Vercel. Signs everyone out; they sign back in with the team code. |
+
+Then update the value in Vercel → **Settings** → **Environment Variables** and
+redeploy. A leaked Supabase key is the urgent one — it reads and writes your
+whole leads table.
 
 ---
 
