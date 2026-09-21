@@ -31,9 +31,10 @@ const COLUMNS: Column[] = [
   { header: "Products discussed", width: 30, value: (l) => l.products_discussed },
   { header: "What we talked about", width: 48, value: (l) => l.notes },
   { header: "Follow-up action", width: 32, value: (l) => l.follow_up },
-  { header: "Follow up by", width: 14, value: (l) => l.follow_up_by },
   { header: "Captured by", width: 16, value: (l) => l.captured_by },
-  { header: "Captured at", width: 20, value: (l) => formatTimestamp(l.captured_at) },
+  // Split so a pivot can group by day or by hour without parsing anything.
+  { header: "Captured date", width: 14, value: (l) => capturedDate(l.captured_at) },
+  { header: "Captured time", width: 14, value: (l) => capturedTime(l.captured_at) },
   { header: "Card front", width: 14, value: (l) => l.card_front_url ?? "" },
   { header: "Card back", width: 14, value: (l) => l.card_back_url ?? "" },
 ];
@@ -53,11 +54,41 @@ const RATING_FILL: Record<Rating, string> = {
   not_a_lead: "FFF1F5F9",
 };
 
-function formatTimestamp(iso: string): string {
+/**
+ * Timestamps are stored in UTC, but a booth happens in one place and the
+ * spreadsheet is read by people who were standing in it. Rendering in the
+ * exhibition's own timezone is the difference between "09:14, just after the
+ * doors opened" and a baffling "01:14".
+ */
+const TIMEZONE = process.env.TIMEZONE || "Asia/Singapore";
+
+function parts(iso: string): Record<string, string> | null {
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  // Local-looking, sortable, and safe from Excel's date guessing.
-  return date.toISOString().replace("T", " ").slice(0, 16);
+  if (Number.isNaN(date.getTime())) return null;
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return Object.fromEntries(
+    formatter.formatToParts(date).map((part) => [part.type, part.value]),
+  );
+}
+
+/** ISO-ordered, so it still sorts correctly as text in Excel. */
+function capturedDate(iso: string): string {
+  const p = parts(iso);
+  return p ? `${p.year}-${p.month}-${p.day}` : "";
+}
+
+function capturedTime(iso: string): string {
+  const p = parts(iso);
+  // Intl renders midnight as "24" in some locales; normalise it.
+  return p ? `${p.hour === "24" ? "00" : p.hour}:${p.minute}` : "";
 }
 
 function safeFilename(name: string): string {

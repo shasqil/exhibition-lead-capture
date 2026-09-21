@@ -152,6 +152,87 @@ async function main() {
     );
     await page.screenshot(join(SHOTS, "5-online.png"));
 
+    /* --- A half-typed lead survives tapping away --------------------------- */
+    // The capture form is filled in mid-conversation. Leaving it, by tab or by
+    // the browser discarding the page, must never cost the conversation.
+    await page.evaluate(clickByText("nav button", "Capture"));
+    await page.waitFor(bodyIncludes("How good is this lead"), { label: "capture screen" });
+
+    await page.evaluate(fillField("Name", "Wei Ming Lim"));
+    await page.evaluate(fillField("Company", "Sembcorp Marine"));
+    await page.evaluate(
+      fillField("What we talked about", "Half-typed when the phone rang."),
+    );
+    await page.evaluate(clickByText("button", "Armourflex"));
+    // Longer than the autosave debounce.
+    await new Promise((done) => setTimeout(done, 900));
+
+    await page.evaluate(clickByText("nav button", "Leads"));
+    await page.waitFor(bodyIncludes("Jane Tan"), { label: "leads list" });
+    await page.evaluate(clickByText("nav button", "Capture"));
+    await page.waitFor(bodyIncludes("Picked up where you left off"), {
+      label: "the restored draft",
+    });
+
+    const restored = await page.evaluate(`
+      (() => {
+        const value = (label) => {
+          const node = [...document.querySelectorAll('label')]
+            .find((l) => l.textContent.trim().toLowerCase().startsWith(label));
+          return node?.querySelector('input, textarea')?.value ?? '';
+        };
+        const chip = [...document.querySelectorAll('button')]
+          .find((b) => b.textContent.includes('Armourflex'));
+        return {
+          name: value('name'),
+          company: value('company'),
+          notes: value('what we talked about'),
+          product: chip?.getAttribute('aria-pressed'),
+        };
+      })()`);
+
+    if (restored.name !== "Wei Ming Lim" || restored.company !== "Sembcorp Marine") {
+      throw new Error(`Draft lost the contact fields: ${JSON.stringify(restored)}`);
+    }
+    if (!restored.notes.includes("Half-typed")) {
+      throw new Error(`Draft lost the notes: ${JSON.stringify(restored)}`);
+    }
+    if (restored.product !== "true") {
+      throw new Error(`Draft lost the product selection: ${JSON.stringify(restored)}`);
+    }
+    step("Unsaved lead survived leaving the form", "fields and product still there");
+
+    /* --- And survives the page being closed entirely ----------------------- */
+    await page.goto(BASE);
+    await page.waitFor(bodyIncludes("Picked up where you left off"), {
+      label: "the draft after a full reload",
+    });
+    const afterReload = await page.evaluate(`
+      [...document.querySelectorAll('label')]
+        .find((l) => l.textContent.trim().toLowerCase().startsWith('name'))
+        ?.querySelector('input')?.value ?? ''`);
+    if (afterReload !== "Wei Ming Lim") {
+      throw new Error(`Draft did not survive a reload, got "${afterReload}"`);
+    }
+    step("Unsaved lead survived a full reload");
+    await page.screenshot(join(SHOTS, "7-draft.png"));
+
+    /* --- The save button must actually be reachable ------------------------ */
+    // It was previously fixed to the viewport bottom, underneath the tab bar.
+    const saveVisible = await page.evaluate(`
+      (() => {
+        const button = [...document.querySelectorAll('button')]
+          .find((b) => b.textContent.trim() === 'Save lead');
+        if (!button) return { found: false };
+        const r = button.getBoundingClientRect();
+        // What is actually painted at the button's centre?
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return { found: true, covered: !button.contains(hit) && hit !== button };
+      })()`);
+    if (!saveVisible.found) throw new Error("No Save lead button on the capture form");
+    if (saveVisible.covered) throw new Error("Save lead button is covered by something else");
+    step("Save button is reachable", "nothing painted on top of it");
+
     /* --- Export tab renders ----------------------------------------------- */
     await page.evaluate(clickByText("nav button", "Export"));
     await page.waitFor(bodyIncludes("Export to Excel"), { label: "export tab" });

@@ -10,7 +10,6 @@ function nullableText(value: unknown, max = 2000): string | null {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function uuidOrNull(value: unknown): string | null {
   const result = text(value, 36);
@@ -36,8 +35,6 @@ export function normaliseLead(input: unknown, capturedBy: string): Lead | null {
   const id = uuidOrNull(raw.id);
   if (!id) return null;
 
-  const followUpBy = text(raw.follow_up_by, 10);
-
   return {
     id,
     event_id: uuidOrNull(raw.event_id),
@@ -60,7 +57,6 @@ export function normaliseLead(input: unknown, capturedBy: string): Lead | null {
     products_discussed: text(raw.products_discussed, 1000),
     notes: text(raw.notes, 5000),
     follow_up: text(raw.follow_up, 1000),
-    follow_up_by: ISO_DATE.test(followUpBy) ? followUpBy : "",
 
     card_front_url: nullableText(raw.card_front_url, 500),
     card_back_url: nullableText(raw.card_back_url, 500),
@@ -70,12 +66,16 @@ export function normaliseLead(input: unknown, capturedBy: string): Lead | null {
   };
 }
 
-/** Postgres wants null, not "", for an empty date. */
+/**
+ * The table still carries a `follow_up_by` date column, reserved for a
+ * follow-up deadline the app does not collect yet. Leaving the key out sends
+ * NULL, which is what an unset deadline should be.
+ */
 export function leadToRow(lead: Lead): Record<string, unknown> {
-  return { ...lead, follow_up_by: lead.follow_up_by || null };
+  return { ...lead };
 }
 
-/** And the client wants "", not null, so its form inputs stay controlled. */
+/** The client wants "", not null, so its form inputs stay controlled. */
 export function rowToLead(row: Record<string, unknown>): Lead {
   const lead = normaliseLead(row, text(row.captured_by, 200));
   // Rows come from our own table, so the shape is known; this only ever trips

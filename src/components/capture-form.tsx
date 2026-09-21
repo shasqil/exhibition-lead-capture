@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Banner, Button, Field, SectionTitle, Spinner, TextArea } from "./ui";
 import { CardPhotos, type CardPhoto } from "./card-photos";
 import { RatingPicker } from "./rating-picker";
+import { ProductPicker } from "./product-picker";
 import { blobToBase64, compressImage } from "@/lib/image";
-import { deleteLead, saveLead } from "@/lib/local-db";
+import { clearDraft, deleteLead, draftHasContent, getDraft, saveDraft, saveLead } from "@/lib/local-db";
 import { syncNow } from "@/lib/sync";
 import {
   CARD_FIELDS,
@@ -20,13 +21,15 @@ import {
 interface Props {
   member: string;
   event: ExhibitionEvent | null;
+  /** The tickable product list, from the PRODUCTS environment variable. */
+  products: string[];
   /** Null for a new capture, otherwise the lead being edited. */
   existing?: LocalLead | null;
   onDone: (message: string) => void;
   onCancel?: () => void;
 }
 
-export function CaptureForm({ member, event, existing, onDone, onCancel }: Props) {
+export function CaptureForm({ member, event, products, existing, onDone, onCancel }: Props) {
   const [lead, setLead] = useState<Lead>(
     () =>
       existing ??
@@ -46,6 +49,9 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
   const [showMore, setShowMore] = useState(false);
   const [saving, setSaving] = useState(false);
   const [needsScan, setNeedsScan] = useState(existing?.needs_scan ?? false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  // Drafts only apply to a new capture; editing a saved lead already persists.
+  const [draftReady, setDraftReady] = useState(Boolean(existing));
 
   // The form reads `lead` inside an async scan; a ref keeps that read current
   // without making the scan callback change identity on every keystroke.
@@ -53,6 +59,64 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
   useEffect(() => {
     leadRef.current = lead;
   }, [lead]);
+
+  /* --- Autosave ----------------------------------------------------------
+   * The form is filled in mid-conversation and the phone will be interrupted:
+   * a tab switch, an incoming call, iOS discarding the tab to reclaim memory.
+   * Every keystroke is written to the device so none of that costs a lead.
+   * ---------------------------------------------------------------------- */
+
+  // Bring back whatever was being typed when the form last went away.
+  useEffect(() => {
+    if (existing) return;
+    let cancelled = false;
+    void getDraft().then((draft) => {
+      if (cancelled) return;
+      if (draftHasContent(draft)) {
+        setLead(draft.lead);
+        if (draft.front) setFront({ blob: draft.front });
+        if (draft.back) setBack({ blob: draft.back });
+        setNeedsScan(draft.needs_scan ?? false);
+        setDraftRestored(true);
+      }
+      // Only start writing drafts once any existing one has been read, or the
+      // empty initial state would overwrite it first.
+      setDraftReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [existing]);
+
+  const latest = useRef({ lead, front, back, needsScan });
+  latest.current = { lead, front, back, needsScan };
+
+  useEffect(() => {
+    if (existing || !draftReady) return;
+    // Debounced so a fast typist is not writing to IndexedDB per character.
+    const timer = setTimeout(() => {
+      const { lead: current, front: f, back: b, needsScan: scan } = latest.current;
+      void saveDraft({ lead: current, front: f.blob, back: b.blob, needs_scan: scan });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [lead, front, back, needsScan, existing, draftReady]);
+
+  // A pending debounce would be lost when the form unmounts on a tab switch,
+  // so flush on the way out.
+  //
+  // `draftReady` gates this for the same reason it gates the debounce: until
+  // the stored draft has been read, this component's state is the empty form,
+  // and flushing that would erase the very draft we are about to restore.
+  // React's development double-mount makes this fire immediately, but the race
+  // is real in production too — leaving the tab within a few milliseconds of
+  // opening it would otherwise wipe the draft.
+  useEffect(() => {
+    if (existing || !draftReady) return;
+    return () => {
+      const { lead: current, front: f, back: b, needsScan: scan } = latest.current;
+      void saveDraft({ lead: current, front: f.blob, back: b.blob, needs_scan: scan });
+    };
+  }, [existing, draftReady]);
 
   const set = useCallback(<K extends keyof Lead>(key: K, value: Lead[K]) => {
     setLead((current) => ({ ...current, [key]: value }));
@@ -159,6 +223,7 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
         needs_scan: needsScan,
       };
       await saveLead(record);
+      if (!existing) await clearDraft();
       void syncNow();
       onDone(existing ? "Lead updated." : "Lead saved.");
     } finally {
@@ -176,8 +241,22 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
 
   const highlight = (field: CardField) => filled.has(field);
 
+  const capturedLabel = new Date(lead.captured_at).toLocaleString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
   return (
-    <div className="space-y-5 pb-28">
+    <div className="space-y-5">
+      {draftRestored ? (
+        <Banner tone="info" onDismiss={() => setDraftRestored(false)}>
+          Picked up where you left off. This lead is not saved yet.
+        </Banner>
+      ) : null}
+
       {event ? null : (
         <Banner tone="info">
           No exhibition selected. Pick one on the <strong>Export</strong> tab so your leads are
@@ -297,11 +376,10 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
           placeholder="Runs 3 FPSOs in West Africa. Unhappy with current PFP vendor — lead times. Wants a quote for hull blasting by Q1."
           hint="The bit you'll forget by Friday"
         />
-        <Field
-          label="Products discussed"
+        <ProductPicker
+          options={products}
           value={lead.products_discussed}
           onChange={(value) => set("products_discussed", value)}
-          placeholder="PFP coating, scaffolding"
         />
         <Field
           label="Follow-up action"
@@ -309,13 +387,11 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
           onChange={(value) => set("follow_up", value)}
           placeholder="Send capability statement + price list"
         />
-        <Field
-          label="Follow up by"
-          value={lead.follow_up_by}
-          onChange={(value) => set("follow_up_by", value)}
-          type="date"
-        />
       </div>
+
+      <p className="text-center text-xs text-slate-400">
+        {existing ? "Captured" : "Started"} {capturedLabel}
+      </p>
 
       {existing ? (
         <Button variant="danger" onClick={() => void remove()} full>
@@ -323,8 +399,13 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
         </Button>
       ) : null}
 
-      <div className="pb-safe fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 pt-3 backdrop-blur">
-        <div className="mx-auto flex max-w-lg gap-2">
+      {/*
+        Sticky inside the scrolling area, not fixed to the viewport. Fixed put
+        it underneath the tab bar, which sits at the same edge with a higher
+        stacking order — the button was on screen but unreachable.
+      */}
+      <div className="sticky bottom-0 -mx-4 border-t border-slate-200 bg-white px-4 pb-3 pt-3 shadow-[0_-10px_20px_-12px_rgba(15,23,42,0.25)]">
+        <div className="flex gap-2">
           {onCancel ? (
             <Button variant="secondary" onClick={onCancel}>
               Cancel
@@ -335,6 +416,11 @@ export function CaptureForm({ member, event, existing, onDone, onCancel }: Props
             {existing ? "Save changes" : "Save lead"}
           </Button>
         </div>
+        {existing ? null : (
+          <p className="mt-1.5 text-center text-xs text-slate-400">
+            Kept on this phone as you type — you won&apos;t lose it if you tap away.
+          </p>
+        )}
       </div>
     </div>
   );

@@ -20,7 +20,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "export", label: "Export", icon: "↓" },
 ];
 
-export function App({ member }: { member: string }) {
+export function App({ member, products }: { member: string; products: string[] }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("capture");
   const [editing, setEditing] = useState<LocalLead | null>(null);
@@ -70,8 +70,8 @@ export function App({ member }: { member: string }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-slate-100">
-      <header className="pt-safe sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 pb-3 backdrop-blur">
+    <div className="mx-auto flex h-dvh max-w-lg flex-col bg-slate-100">
+      <header className="pt-safe z-20 shrink-0 border-b border-slate-200 bg-white/95 px-4 pb-3 backdrop-blur">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="truncate text-base font-bold text-slate-900">
@@ -96,20 +96,20 @@ export function App({ member }: { member: string }) {
       </header>
 
       {toast ? (
-        <div className="px-4 pt-3">
+        <div className="shrink-0 px-4 pt-3">
           <Banner tone="success">{toast}</Banner>
         </div>
       ) : null}
 
       {status.error && status.online ? (
-        <div className="px-4 pt-3">
+        <div className="shrink-0 px-4 pt-3">
           <Banner tone="error">
             {status.error} Your leads are safe on this phone — tap the badge to retry.
           </Banner>
         </div>
       ) : null}
 
-      <main className="flex-1 px-4 py-4">
+      <main className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {editing ? (
           <>
             <button
@@ -123,6 +123,7 @@ export function App({ member }: { member: string }) {
               key={editing.id}
               member={member}
               event={event}
+              products={products}
               existing={editing}
               onDone={finishEditing}
               onCancel={() => setEditing(null)}
@@ -133,6 +134,7 @@ export function App({ member }: { member: string }) {
             key={formKey}
             member={member}
             event={event}
+            products={products}
             onDone={(message) => {
               setToast(message);
               setFormKey((value) => value + 1);
@@ -152,7 +154,7 @@ export function App({ member }: { member: string }) {
       </main>
 
       {editing ? null : (
-        <nav className="pb-safe sticky bottom-0 z-20 grid grid-cols-3 border-t border-slate-200 bg-white/95 pt-1 backdrop-blur">
+        <nav className="pb-safe z-20 grid shrink-0 grid-cols-3 border-t border-slate-200 bg-white/95 pt-1 backdrop-blur">
           {TABS.map((item) => (
             <button
               key={item.id}

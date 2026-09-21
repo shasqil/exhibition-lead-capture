@@ -19,7 +19,8 @@ back. Nothing is lost mid-conversation.
 | **Scan a card** | Photograph the front and back. Claude reads the name, company, title, email, phone, website and address. Handles two-sided and non-English cards. |
 | **Or type it in** | Every field is editable. The scan only fills in blanks — it never overwrites something you typed. |
 | **Rate the lead** | Four big buttons: Hot, Warm, Cold, Not a lead. |
-| **Record the conversation** | A free-text box for what you actually talked about, plus products discussed, a follow-up action and a due date. |
+| **Record the conversation** | A free-text box for what you actually talked about, the products that came up as tap-to-tick chips, and a follow-up action. |
+| **Never loses a half-typed lead** | The capture form saves itself to the phone as you type. Switch tabs, take a call, let the browser discard the page — it comes back exactly as you left it. |
 | **Works offline** | Leads save instantly on the phone. A badge at the top always tells you whether your work has reached the server. |
 | **Installs like an app** | "Add to Home Screen" gives it an icon and a full screen, no browser bar. |
 | **Exports to Excel** | One `.xlsx` with every lead, colour-coded by rating, clickable email and photo links, plus a summary tab counting leads per person. |
@@ -93,7 +94,8 @@ subscription** — it's a pay-as-you-go developer account.
 
 1. Go to [vercel.com](https://vercel.com) and sign in **with GitHub**.
 2. Click **Add New** → **Project**, and pick this repository.
-3. Before clicking Deploy, open **Environment Variables** and add these five:
+3. Before clicking Deploy, open **Environment Variables** and add these. The
+   first six are required; the last two have sensible defaults:
 
    | Name | Value |
    |---|---|
@@ -101,8 +103,10 @@ subscription** — it's a pay-as-you-go developer account.
    | `TEAM_PASSCODE` | The shared code your team will type. e.g. `booth-2026` |
    | `TEAM_MEMBERS` | Your team's names, comma-separated. e.g. `Shas,Alice,Bob` |
    | `SUPABASE_URL` | The Project URL from step 1 |
-   | `SUPABASE_SERVICE_ROLE_KEY` | The `service_role` key from step 1 |
+   | `SUPABASE_SERVICE_ROLE_KEY` | The secret key from step 1 |
    | `ANTHROPIC_API_KEY` | The `sk-ant-…` key from step 2 |
+   | `PRODUCTS` | *Optional.* The tickable products, comma-separated. Defaults to `Armourflex,Androflex,Audioflex` |
+   | `TIMEZONE` | *Optional.* Where the show is, so exported times are local. Defaults to `Asia/Singapore` |
 
    To generate a `SESSION_SECRET`, run this in a terminal:
 
@@ -148,8 +152,13 @@ time. Each person does this once on their own phone.
    two, highlighted in green so you can check them.
 3. Tap **Back** if the card has a second side worth reading.
 4. Tap **Hot**, **Warm**, **Cold** or **Not a lead**.
-5. Type what you talked about while it's fresh.
+5. Type what you talked about while it's fresh, and tick any products that
+   came up.
 6. Tap **Save lead**. The form clears, ready for the next person.
+
+**If you get interrupted:** just leave. The form keeps itself on the phone as
+you type, and picks up where you left off when you come back — even if the
+browser closed in between. It only clears once you actually save.
 
 **If there's no signal:** everything still works. The card photo is stored and
 read automatically once you're back online, and the badge at the top says how
@@ -164,7 +173,8 @@ Open the **Export** tab and tap **Download**. You get an `.xlsx` file with:
 
 - **Leads** sheet — one row per lead, with the rating colour-coded, email
   addresses and card photos as clickable links, and a filter row so you can sort
-  by rating or by who captured it.
+  by rating or by who captured it. Capture date and time are separate columns,
+  in the exhibition's own timezone, so a pivot can group by day or by hour.
 - **Summary** sheet — how many Hot / Warm / Cold each person captured.
 
 By default leads marked *Not a lead* are left out; there's a checkbox to

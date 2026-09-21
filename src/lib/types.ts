@@ -38,6 +38,22 @@ export function isRating(value: unknown): value is Rating {
 }
 
 /**
+ * The product list is stored as one comma-separated string rather than its own
+ * table: it keeps the database unchanged, exports to a spreadsheet cell people
+ * can read, and the list is short enough that nobody needs to query it.
+ */
+export function parseProducts(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+export function joinProducts(products: string[]): string {
+  return products.join(", ");
+}
+
+/**
  * The fields the card scanner tries to fill in. Kept separate from `Lead` so the
  * Anthropic tool schema and the "which fields did the scan touch" highlight can
  * both be derived from one list.
@@ -83,7 +99,6 @@ export interface Lead {
   products_discussed: string;
   notes: string;
   follow_up: string;
-  follow_up_by: string;
 
   card_front_url: string | null;
   card_back_url: string | null;
@@ -138,7 +153,6 @@ export function emptyLead(overrides: Partial<Lead> = {}): Lead {
     products_discussed: "",
     notes: "",
     follow_up: "",
-    follow_up_by: "",
     card_front_url: null,
     card_back_url: null,
     updated_at: now,
@@ -168,7 +182,6 @@ export function toWireLead(lead: LocalLead | Lead): Lead {
     products_discussed,
     notes,
     follow_up,
-    follow_up_by,
     card_front_url,
     card_back_url,
     updated_at,
@@ -193,7 +206,6 @@ export function toWireLead(lead: LocalLead | Lead): Lead {
     products_discussed,
     notes,
     follow_up,
-    follow_up_by,
     card_front_url,
     card_back_url,
     updated_at,

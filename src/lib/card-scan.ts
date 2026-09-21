@@ -47,8 +47,14 @@ const SYSTEM_PROMPT = [
   "- Many cards print one side in English and the other in another language. Prefer the English spelling for names and companies; if only a non-Latin script is present, transliterate it and keep the original in the address field if it is an address.",
   "- Copy what is printed. Do not guess, complete, or correct an email address, phone number or URL.",
   "- Leave a field out entirely rather than filling it with a placeholder, 'N/A', or a guess.",
-  "- A general company switchboard goes in 'phone'. A number labelled mobile, cell, hp, or M: goes in 'mobile'.",
   "- If an image is too blurred or dark to read, leave the affected fields out.",
+  "",
+  "Telephone numbers — decide 'mobile' vs 'phone' in this order:",
+  "1. Go by the printed label. These mean MOBILE: M, Mob, Mobile, Cell, Cell., C, HP, H/P, H/P., Hand phone, Handphone, WhatsApp, WA, 手机, 手機, Móvil. These mean OFFICE: T, Tel, Tel., Ph, Phone, O, Off, Office, DID, D, Direct, Main, Switchboard, 电话.",
+  "2. Never put a fax number in either field. F, Fax, Facsimile and 传真 are fax — leave them out entirely.",
+  "3. If exactly one number is labelled and one is not, the unlabelled one is the other kind.",
+  "4. If nothing is labelled, use the number's own shape. A Singapore number beginning 8 or 9 is mobile and one beginning 6 is an office line. A Malaysian number beginning 01 is mobile. An Indonesian number beginning 08 or +628 is mobile. A number with an extension ('ext', 'x', '#') is always an office line.",
+  "5. If you still cannot tell, put it in 'phone' and leave 'mobile' out. A number in the wrong box is worse than an empty box.",
 ].join("\n");
 
 /**

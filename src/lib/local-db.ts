@@ -1,7 +1,7 @@
 "use client";
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { ExhibitionEvent, LocalLead } from "./types";
+import type { ExhibitionEvent, Lead, LocalLead } from "./types";
 
 const DB_NAME = "exhibition-lead-capture";
 const DB_VERSION = 1;
@@ -175,6 +175,59 @@ export const setCachedEvents = (events: ExhibitionEvent[]) => setMeta("events", 
 
 export const getLastPulledAt = () => getMeta<string>("last_pulled_at");
 export const setLastPulledAt = (value: string) => setMeta("last_pulled_at", value);
+
+/* -------------------------------------------------------------------------- */
+/* The in-progress capture                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A lead that is being typed but has not been saved yet.
+ *
+ * At a booth the form is filled in while talking to someone, and anything can
+ * interrupt: a tab switch, a phone call, the browser dropping the tab to
+ * reclaim memory. Keeping the half-finished capture here means none of that
+ * loses the conversation.
+ */
+export interface CaptureDraft {
+  lead: Lead;
+  front?: Blob;
+  back?: Blob;
+  needs_scan?: boolean;
+  saved_at: string;
+}
+
+const DRAFT_KEY = "capture_draft";
+
+export const getDraft = () => getMeta<CaptureDraft>(DRAFT_KEY);
+
+export async function saveDraft(draft: Omit<CaptureDraft, "saved_at">): Promise<void> {
+  await setMeta(DRAFT_KEY, { ...draft, saved_at: new Date().toISOString() });
+}
+
+export async function clearDraft(): Promise<void> {
+  await (await db()).delete("meta", DRAFT_KEY);
+}
+
+/** True when the draft holds anything worth restoring. */
+export function draftHasContent(draft: CaptureDraft | undefined): draft is CaptureDraft {
+  if (!draft) return false;
+  if (draft.front || draft.back) return true;
+  const { lead } = draft;
+  return Boolean(
+    lead.full_name.trim() ||
+      lead.company.trim() ||
+      lead.job_title.trim() ||
+      lead.email.trim() ||
+      lead.phone.trim() ||
+      lead.mobile.trim() ||
+      lead.website.trim() ||
+      lead.address.trim() ||
+      lead.country.trim() ||
+      lead.products_discussed.trim() ||
+      lead.notes.trim() ||
+      lead.follow_up.trim(),
+  );
+}
 
 /** Clears everything on this device. Used by "sign out". */
 export async function clearLocalData(): Promise<void> {
