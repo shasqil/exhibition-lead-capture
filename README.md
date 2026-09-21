@@ -47,14 +47,35 @@ accounts: **GitHub** (you have this), **Supabase**, and **Vercel**. Plus an
    This creates the two tables, locks them down, and creates the `cards`
    storage bucket for the photos. It is safe to run again if you ever need to.
 
-6. Now collect two values. Go to **Project Settings** (the gear icon) → **API**:
-   - **Project URL** — looks like `https://abcdefgh.supabase.co`
-   - **`service_role` key** — a long string under "Project API keys". Click the
-     eye icon to reveal it.
+6. Now collect two values.
 
-   > The `service_role` key is a master key for your database. Only ever paste
-   > it into Vercel's environment variables. It is used on the server and never
-   > sent to anyone's browser.
+   **Project URL** — you don't need to hunt for this on a page. It is built
+   from the project ID that is already in your dashboard's web address:
+
+   ```
+   https://supabase.com/dashboard/project/abcdefghijklmnop/...
+                                          ^^^^^^^^^^^^^^^^ your project ID
+
+   your Project URL = https://abcdefghijklmnop.supabase.co
+   ```
+
+   **The secret key** — go to **Project Settings** (the gear icon) →
+   **API Keys**. Supabase is part-way through renaming these, so you will see
+   one of two things. Take the secret one either way:
+
+   | If the page shows | Copy this | Not this |
+   |---|---|---|
+   | New-style keys | **Secret key** (`sb_secret_…`) | `sb_publishable_…` |
+   | Legacy keys | **`service_role`** (a long `eyJ…` string) | `anon` / `public` |
+
+   Both work. If the page offers both, take **`service_role`** — it's the
+   longest-established of the two. If **API Keys** isn't in the sidebar, look
+   under **API** or **Data API**; the page has moved around between Supabase
+   versions.
+
+   > That key is a master key for your database. It goes into Vercel's
+   > environment variables and nowhere else — not into a chat, a doc, or the
+   > code. It is only ever used on the server and never reaches a browser.
 
 ### Step 2 — Get an Anthropic API key
 

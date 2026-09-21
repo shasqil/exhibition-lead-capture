@@ -18,12 +18,19 @@ const REQUIRED: Requirement[] = [
   {
     key: "SUPABASE_URL",
     what: "Where the leads are stored.",
-    where: "Supabase dashboard → Project Settings → Data API → Project URL",
+    // Deriving it from the dashboard address beats naming a settings page —
+    // Supabase keeps moving those, and the project ID never changes.
+    where:
+      "https://<project-id>.supabase.co — your project ID is the code in your " +
+      "Supabase dashboard's web address, after /project/",
   },
   {
     key: "SUPABASE_SERVICE_ROLE_KEY",
     what: "Lets the app read and write that storage.",
-    where: "Supabase dashboard → Project Settings → API keys → service_role",
+    where:
+      "Supabase → Project Settings → API Keys. Take the Secret key " +
+      "(sb_secret_…) or, on older projects, the legacy service_role key. " +
+      "Not the publishable or anon one.",
   },
   {
     key: "ANTHROPIC_API_KEY",
