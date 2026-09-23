@@ -193,7 +193,16 @@ export interface CaptureDraft {
   front?: Blob;
   back?: Blob;
   needs_scan?: boolean;
+  /** When the person first started filling the form in. */
+  started_at?: string | null;
+  /** When each photo was taken, read from its EXIF before it was shrunk. */
+  photo_times?: PhotoTimes;
   saved_at: string;
+}
+
+export interface PhotoTimes {
+  front?: string;
+  back?: string;
 }
 
 const DRAFT_KEY = "capture_draft";

@@ -158,7 +158,14 @@ be re-tagged later by opening it from the **Leads** tab.
    two, highlighted in green so you can check them.
 
    **Already took the photo?** Tap **Upload** under the slot instead, and pick
-   it from your photo library. It is read exactly the same way.
+   it from your photo library. It is read exactly the same way, and the lead
+   is timed by **when the photo was taken**, not when you uploaded it — so
+   cards photographed at 10am and uploaded that evening still say 10am.
+
+   The time comes from the date the camera stores inside the photo. Photos
+   that have been through a chat app or a screenshot usually lose it; for
+   those, and for leads with no photo, the time is when you started filling
+   the lead in.
 3. Tap **Back** if the card has a second side worth reading.
 
    **No business card?** Photograph their badge in the same slot. It reads the
@@ -273,6 +280,7 @@ Other commands:
 npm run build       # production build
 npm run typecheck   # TypeScript check
 npm run lint        # ESLint
+npm test            # unit tests for the photo-date reader
 npm run smoke       # end-to-end browser test, needs `npm run dev` running
 npm run icons       # re-render the app icons from public/icon.svg
 ```

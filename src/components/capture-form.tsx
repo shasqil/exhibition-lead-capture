@@ -6,8 +6,17 @@ import { CardPhotos, type CardPhoto } from "./card-photos";
 import { RatingPicker } from "./rating-picker";
 import { EventSelect } from "./event-select";
 import { ProductPicker } from "./product-picker";
+import { readPhotoTakenAt } from "@/lib/exif";
 import { blobToBase64, compressImage } from "@/lib/image";
-import { clearDraft, deleteLead, draftHasContent, getDraft, saveDraft, saveLead } from "@/lib/local-db";
+import {
+  clearDraft,
+  deleteLead,
+  draftHasContent,
+  getDraft,
+  saveDraft,
+  saveLead,
+  type PhotoTimes,
+} from "@/lib/local-db";
 import { syncNow } from "@/lib/sync";
 import {
   CARD_FIELDS,
@@ -18,6 +27,15 @@ import {
   type Lead,
   type LocalLead,
 } from "@/lib/types";
+
+/** The earliest of some ISO timestamps, ignoring blanks. */
+function earliest(...times: (string | null | undefined)[]): string | null {
+  let best: string | null = null;
+  for (const time of times) {
+    if (time && (!best || Date.parse(time) < Date.parse(best))) best = time;
+  }
+  return best;
+}
 
 interface Props {
   member: string;
@@ -67,6 +85,13 @@ export function CaptureForm({
   const [saving, setSaving] = useState(false);
   const [needsScan, setNeedsScan] = useState(existing?.needs_scan ?? false);
   const [draftRestored, setDraftRestored] = useState(false);
+  /**
+   * When the person first started on this lead. The form is created the moment
+   * the Capture screen opens — which may be hours before anyone walks up — so
+   * that is not a meeting time; the first thing typed or photographed is.
+   */
+  const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [photoTimes, setPhotoTimes] = useState<PhotoTimes>({});
   // Drafts only apply to a new capture; editing a saved lead already persists.
   const [draftReady, setDraftReady] = useState(Boolean(existing));
 
@@ -94,6 +119,9 @@ export function CaptureForm({
         if (draft.front) setFront({ blob: draft.front });
         if (draft.back) setBack({ blob: draft.back });
         setNeedsScan(draft.needs_scan ?? false);
+        // Drafts from before these were kept only have the lead's own time.
+        setStartedAt(draft.started_at ?? draft.lead.captured_at);
+        setPhotoTimes(draft.photo_times ?? {});
         setDraftRestored(true);
       }
       // Only start writing drafts once any existing one has been read, or the
@@ -105,8 +133,20 @@ export function CaptureForm({
     };
   }, [existing]);
 
-  const latest = useRef({ lead, front, back, needsScan });
-  latest.current = { lead, front, back, needsScan };
+  const latest = useRef({ lead, front, back, needsScan, startedAt, photoTimes });
+  latest.current = { lead, front, back, needsScan, startedAt, photoTimes };
+
+  const writeDraft = useCallback(() => {
+    const { lead: current, front: f, back: b, needsScan: scan } = latest.current;
+    void saveDraft({
+      lead: current,
+      front: f.blob,
+      back: b.blob,
+      needs_scan: scan,
+      started_at: latest.current.startedAt,
+      photo_times: latest.current.photoTimes,
+    });
+  }, []);
 
   /**
    * Set once this form's contents have been dealt with — saved, or cleared on
@@ -121,11 +161,10 @@ export function CaptureForm({
     // Debounced so a fast typist is not writing to IndexedDB per character.
     const timer = setTimeout(() => {
       if (committed.current) return;
-      const { lead: current, front: f, back: b, needsScan: scan } = latest.current;
-      void saveDraft({ lead: current, front: f.blob, back: b.blob, needs_scan: scan });
+      writeDraft();
     }, 400);
     return () => clearTimeout(timer);
-  }, [lead, front, back, needsScan, existing, draftReady]);
+  }, [lead, front, back, needsScan, startedAt, photoTimes, existing, draftReady, writeDraft]);
 
   // A pending debounce would be lost when the form unmounts on a tab switch,
   // so flush on the way out.
@@ -140,14 +179,21 @@ export function CaptureForm({
     if (existing || !draftReady) return;
     return () => {
       if (committed.current) return;
-      const { lead: current, front: f, back: b, needsScan: scan } = latest.current;
-      void saveDraft({ lead: current, front: f.blob, back: b.blob, needs_scan: scan });
+      writeDraft();
     };
-  }, [existing, draftReady]);
+  }, [existing, draftReady, writeDraft]);
 
-  const set = useCallback(<K extends keyof Lead>(key: K, value: Lead[K]) => {
-    setLead((current) => ({ ...current, [key]: value }));
+  const markStarted = useCallback(() => {
+    setStartedAt((current) => current ?? new Date().toISOString());
   }, []);
+
+  const set = useCallback(
+    <K extends keyof Lead>(key: K, value: Lead[K]) => {
+      markStarted();
+      setLead((current) => ({ ...current, [key]: value }));
+    },
+    [markStarted],
+  );
 
   /** Sends whatever photos we have to Claude and fills the blanks it can. */
   const runScan = useCallback(async (blobs: (Blob | undefined)[]) => {
@@ -235,6 +281,11 @@ export function CaptureForm({
   }, []);
 
   async function pickPhoto(side: "front" | "back", file: File) {
+    markStarted();
+    // Must be read from the original: shrinking re-encodes the image and the
+    // EXIF block, with its timestamp, does not survive.
+    const takenAt = await readPhotoTakenAt(file);
+    setPhotoTimes((current) => ({ ...current, [side]: takenAt ?? undefined }));
     const blob = await compressImage(file);
     if (side === "front") {
       setFront({ blob });
@@ -251,6 +302,7 @@ export function CaptureForm({
       const record: LocalLead = {
         ...lead,
         captured_by: member,
+        captured_at: capturedAt,
         // The picker above is the only thing that sets this now, so whatever
         // it holds is deliberate — including "none". Falling back to the
         // active event here would silently undo clearing it.
@@ -311,6 +363,8 @@ export function CaptureForm({
     setScanNote(null);
     setNeedsScan(false);
     setDraftRestored(false);
+    setStartedAt(null);
+    setPhotoTimes({});
   }
 
   async function remove() {
@@ -323,7 +377,22 @@ export function CaptureForm({
 
   const highlight = (field: CardField) => filled.has(field);
 
-  const capturedLabel = new Date(lead.captured_at).toLocaleString(undefined, {
+  /*
+   * When this person was met.
+   *
+   * New lead: when the earliest photo was taken, if a photo carried its date;
+   * otherwise when the form was first filled in.
+   *
+   * Saved lead: a photo can only move the time earlier. Adding a card someone
+   * emailed afterwards must not move when you actually met them.
+   */
+  const photoTaken = earliest(photoTimes.front, photoTimes.back);
+  const capturedAt = existing
+    ? (earliest(lead.captured_at, photoTaken) ?? lead.captured_at)
+    : (photoTaken ?? startedAt ?? lead.captured_at);
+  const timeFromPhoto = photoTaken !== null && capturedAt === photoTaken;
+
+  const capturedLabel = new Date(capturedAt).toLocaleString(undefined, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -362,10 +431,22 @@ export function CaptureForm({
         back={back}
         onPickFront={(file) => void pickPhoto("front", file)}
         onPickBack={(file) => void pickPhoto("back", file)}
-        onClearFront={() => setFront({ url: null })}
-        onClearBack={() => setBack({ url: null })}
+        onClearFront={() => {
+          setFront({ url: null });
+          setPhotoTimes((current) => ({ ...current, front: undefined }));
+        }}
+        onClearBack={() => {
+          setBack({ url: null });
+          setPhotoTimes((current) => ({ ...current, back: undefined }));
+        }}
         scanning={scanning}
       />
+
+      {timeFromPhoto ? (
+        <p className="-mt-3 text-xs font-medium text-slate-600">
+          🕒 Time taken from the photo: {capturedLabel}
+        </p>
+      ) : null}
 
       {scanNote ? (
         <Banner tone={scanNote.tone} onDismiss={() => setScanNote(null)}>
@@ -483,7 +564,7 @@ export function CaptureForm({
       </div>
 
       <p className="text-center text-xs text-slate-400">
-        {existing ? "Captured" : "Started"} {capturedLabel}
+        {timeFromPhoto ? "Photo taken" : existing ? "Captured" : "Started"} {capturedLabel}
       </p>
 
       {existing ? (

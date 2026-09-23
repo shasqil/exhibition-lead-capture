@@ -252,6 +252,61 @@ async function main() {
     await page.evaluate(clickByText("button", "Clear"));
     await new Promise((done) => setTimeout(done, 500));
 
+    /* --- The capture time is when the photo was taken ---------------------- */
+    // The fixture is a real JPEG whose EXIF says 20 Sep 2026, 10:42:07 +08:00.
+    // Uploading it should stamp the lead with that moment, not with now.
+    await page.setFiles('input[data-photo="front-upload"]', [
+      resolve("scripts/fixtures/card-photo-with-date.jpg"),
+    ]);
+    await page.waitFor(bodyIncludes("Time taken from the photo"), {
+      label: "the photo-time notice",
+    });
+    // The time notice appears before the card is sent off to be read, so
+    // "Save is enabled" can be true in the gap before reading starts. Wait for
+    // the read to report back instead — against the stub key it fails, which
+    // is fine; what matters is that it has finished.
+    await page.waitFor(
+      `${bodyIncludes("Could not read")} || ${bodyIncludes("Filled in")} || ${bodyIncludes("already filled in")} || ${bodyIncludes("Couldn't read")}`,
+      { label: "the card read to finish" },
+    );
+    // Names are unique per run: the stub server keeps leads between runs and a
+    // fresh browser pulls them all down, so a fixed name can match a stale lead.
+    const photoLead = `Photo Time ${Date.now()}`;
+    await page.evaluate(fillField("Name", photoLead));
+    await page.evaluate(clickByText("button", "Save lead"));
+    await page.waitFor(bodyIncludes("Lead saved"), { label: "photo-time lead saved" });
+
+    const storedTime = (name) => `
+      new Promise((resolve) => {
+        const open = indexedDB.open('exhibition-lead-capture');
+        open.onsuccess = () => {
+          const all = open.result.transaction('leads', 'readonly').objectStore('leads').getAll();
+          all.onsuccess = () =>
+            resolve(all.result.find((l) => l.full_name === ${JSON.stringify(name)})?.captured_at ?? null);
+        };
+      })`;
+    const fromPhoto = await page.evaluate(storedTime(photoLead));
+    if (fromPhoto !== "2026-09-20T02:42:07.000Z") {
+      throw new Error(`Lead time should come from the photo's EXIF, got ${fromPhoto}`);
+    }
+    step("Capture time read from the photo", "EXIF 10:42 +08:00 stored as 02:42 UTC");
+
+    /* --- Without a photo, the clock starts at the first thing typed -------- */
+    // The capture form exists from the moment the screen opens, which can be
+    // long before anyone walks up. Wait, then type, then check the stamp is
+    // the typing, not the opening.
+    await new Promise((done) => setTimeout(done, 2500));
+    const beforeTyping = await page.evaluate(`new Date().toISOString()`);
+    const typedLead = `Typed Later ${Date.now()}`;
+    await page.evaluate(fillField("Name", typedLead));
+    await page.evaluate(clickByText("button", "Save lead"));
+    await page.waitFor(bodyIncludes("Lead saved"), { label: "typed lead saved" });
+    const typedTime = await page.evaluate(storedTime(typedLead));
+    if (!typedTime || typedTime < beforeTyping) {
+      throw new Error(`Lead stamped ${typedTime}, before typing began at ${beforeTyping}`);
+    }
+    step("No photo: time starts at first input", "not when the screen opened");
+
     /* --- A half-typed lead survives tapping away --------------------------- */
     // The capture form is filled in mid-conversation. Leaving it, by tab or by
     // the browser discarding the page, must never cost the conversation.
