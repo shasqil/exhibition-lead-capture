@@ -156,6 +156,9 @@ be re-tagged later by opening it from the **Leads** tab.
    this once and it sticks.
 2. Tap **Front**, photograph the card. The details fill in after a second or
    two, highlighted in green so you can check them.
+
+   **Already took the photo?** Tap **Upload** under the slot instead, and pick
+   it from your photo library. It is read exactly the same way.
 3. Tap **Back** if the card has a second side worth reading.
 
    **No business card?** Photograph their badge in the same slot. It reads the

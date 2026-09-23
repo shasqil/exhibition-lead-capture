@@ -23,8 +23,10 @@ function PhotoSlot({
   onClear: () => void;
   disabled?: boolean;
 }) {
-  const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const library = useRef<HTMLInputElement>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const side = label.toLowerCase();
 
   useEffect(() => {
     if (!photo.blob) {
@@ -38,21 +40,37 @@ function PhotoSlot({
 
   const preview = objectUrl ?? photo.url ?? null;
 
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) onPick(file);
+    // Reset so picking the same file twice still fires a change.
+    event.target.value = "";
+  };
+
   return (
     <div className="flex-1">
+      {/*
+        Two inputs because one cannot do both jobs. `capture` sends a phone
+        straight to the rear camera — the fastest thing at a booth — but it
+        also hides the photo library entirely. The second input has no
+        `capture`, so it offers the library for a card photographed earlier.
+      */}
       <input
-        ref={input}
+        ref={camera}
         type="file"
         accept="image/*"
-        // Opens the rear camera straight away on a phone, the file picker on a laptop.
         capture="environment"
         className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) onPick(file);
-          // Reset so picking the same file twice still fires a change.
-          event.target.value = "";
-        }}
+        data-photo={`${side}-camera`}
+        onChange={handleChange}
+      />
+      <input
+        ref={library}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        data-photo={`${side}-upload`}
+        onChange={handleChange}
       />
       {preview ? (
         <div className="relative">
@@ -73,15 +91,27 @@ function PhotoSlot({
           <span className="mt-1 block text-center text-xs font-medium text-slate-500">{label}</span>
         </div>
       ) : (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => input.current?.click()}
-          className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:border-slate-400 hover:bg-slate-100 disabled:opacity-50"
-        >
-          <span className="text-2xl">📷</span>
-          <span className="text-xs font-semibold">{label}</span>
-        </button>
+        <div className="flex h-28 w-full flex-col overflow-hidden rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => camera.current?.click()}
+            aria-label={`Take a photo of the ${side}`}
+            className="flex flex-1 flex-col items-center justify-center gap-0.5 hover:bg-slate-100 disabled:opacity-50"
+          >
+            <span className="text-2xl leading-none">📷</span>
+            <span className="text-xs font-semibold">{label}</span>
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => library.current?.click()}
+            aria-label={`Upload a saved photo of the ${side}`}
+            className="border-t-2 border-dashed border-slate-300 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          >
+            ⬆ Upload
+          </button>
+        </div>
       )}
     </div>
   );

@@ -12,7 +12,7 @@
  *   node scripts/smoke-test.mjs [http://127.0.0.1:3000]
  */
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { launch } from "./cdp.mjs";
 
 const BASE = process.argv[2] || process.env.SMOKE_BASE_URL || "http://127.0.0.1:3000";
@@ -223,6 +223,34 @@ async function main() {
         ?.querySelector('input')?.value ?? ''`);
     if (stillCleared !== "") throw new Error(`Cleared form came back with "${stillCleared}"`);
     step("Clear empties the form", "and it stays empty after leaving and returning");
+
+    /* --- A photo taken earlier can be uploaded ----------------------------- */
+    // The camera input carries `capture`, which hides the photo library on a
+    // phone. The upload input must not, or there is no way to use a card
+    // photographed before the app was opened.
+    const inputs = await page.evaluate(`
+      Object.fromEntries([...document.querySelectorAll('input[type=file][data-photo]')]
+        .map((i) => [i.dataset.photo, i.hasAttribute('capture')]))`);
+    if (inputs["front-upload"] !== false || inputs["back-upload"] !== false) {
+      throw new Error(`Upload inputs missing or forced to camera: ${JSON.stringify(inputs)}`);
+    }
+    if (inputs["front-camera"] !== true) {
+      throw new Error(`Camera input lost its capture attribute: ${JSON.stringify(inputs)}`);
+    }
+
+    await page.setFiles('input[data-photo="front-upload"]', [
+      resolve("public/icon-512.png"),
+    ]);
+    await page.waitFor(
+      `[...document.querySelectorAll('img')].some((img) => img.alt.includes('Front') && img.src.startsWith('blob:'))`,
+      { label: "the uploaded photo on the form" },
+    );
+    step("Upload a saved photo", "library input offered, picked photo lands in the Front slot");
+
+    // Leave the form clean for the checks that follow.
+    await page.evaluate(`window.confirm = () => true`);
+    await page.evaluate(clickByText("button", "Clear"));
+    await new Promise((done) => setTimeout(done, 500));
 
     /* --- A half-typed lead survives tapping away --------------------------- */
     // The capture form is filled in mid-conversation. Leaving it, by tab or by

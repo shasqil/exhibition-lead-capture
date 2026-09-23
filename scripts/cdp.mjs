@@ -182,6 +182,14 @@ export async function launch({ chromePath = DEFAULT_CHROME, onConsole } = {}) {
       await writeFile(path, Buffer.from(data, "base64"));
     },
 
+    /** Puts files into an <input type=file>, the way a photo picker would. */
+    async setFiles(selector, files) {
+      const { root } = await send("DOM.getDocument", { depth: -1 });
+      const { nodeId } = await send("DOM.querySelector", { nodeId: root.nodeId, selector });
+      if (!nodeId) throw new Error(`No element matches ${selector}`);
+      await send("DOM.setFileInputFiles", { nodeId, files });
+    },
+
     /** Simulates losing signal, which is the whole point of this app. */
     async setOffline(offline) {
       await send("Network.enable");
